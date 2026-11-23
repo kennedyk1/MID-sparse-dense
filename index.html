@@ -67,14 +67,20 @@
     .legend-labels { gap: .5rem; color: #dce6ee; font-variant-numeric: tabular-nums; }
     .legend canvas { display: block; width: clamp(5rem, 20vw, 12rem); height: .6rem; border-radius: .25rem; }
     .swatch { display: inline-block; width: .75rem; height: .75rem; margin-right: .35rem; vertical-align: -.06rem; background: #12161a; border: 1px solid var(--border); }
-    .grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .75rem; }
-    .card { background: var(--panel); border: 1px solid var(--border); border-radius: .6rem; overflow: hidden; }
+    .grid { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: .75rem; }
+    .card { grid-column: span 3; background: var(--panel); border: 1px solid var(--border); border-radius: .6rem; overflow: hidden; }
+    .method { grid-column: span 2; display: flex; flex-direction: column; }
+    .method .card-heading { flex: 1; align-content: start; }
     .card-heading { align-items: baseline; justify-content: space-between; flex-wrap: wrap; gap: .15rem .75rem; padding: .55rem .75rem; }
     .card h2 { margin: 0; font-size: 1rem; font-weight: 600; }
     .card-heading span { color: var(--muted); font-size: .875rem; }
     .image { aspect-ratio: 5 / 4; background: #12161a; }
     .image > * { display: block; width: 100%; height: 100%; object-fit: contain; }
-    @media (max-width: 40rem) { .grid { grid-template-columns: 1fr; } }
+    @media (max-width: 46rem) {
+      .grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .card { grid-column: auto; }
+    }
+    @media (max-width: 34rem) { .grid { grid-template-columns: 1fr; } }
   </style>
 </head>
 <body>
@@ -94,7 +100,7 @@
         <input id="frame-number" type="number" inputmode="numeric" min="1" step="1" required disabled>
         <button id="frame-go" type="submit" disabled>Go</button>
       </form>
-      <label class="viridis-toggle"><input id="viridis" type="checkbox"> Show Viridis Colormap</label>
+      <label class="viridis-toggle"><input id="viridis" type="checkbox" checked autocomplete="off"> Show Viridis Colormap</label>
     </div>
 
     <p id="status" role="status">Loading samples from the repository…</p>
@@ -114,19 +120,23 @@
         <div class="card-heading"><h2>Sparse Range LiDAR</h2><span>Radial range</span></div>
         <div class="image"><canvas id="sparse_range" role="img" aria-label="Sparse LiDAR range map" hidden></canvas></div>
       </section>
-      <section class="card">
-        <div class="card-heading"><h2>Modified Bilateral Filter</h2><span>Radial range</span></div>
-        <div class="image"><canvas id="dense_range_BF" role="img" aria-label="Modified Bilateral Filter dense range map" hidden></canvas></div>
+      <section class="card method">
+        <div class="card-heading"><h2>Bilateral Filter (BF)</h2><span>Radial range · IEEE ITSC 2016</span></div>
+        <div class="image"><canvas id="dense_range_BF" role="img" aria-label="Bilateral Filter dense range map" hidden></canvas></div>
       </section>
-      <section class="card">
-        <div class="card-heading"><h2>CUNET</h2><span>Z-axis depth</span></div>
-        <div class="image"><canvas id="dense_range_CUNET" role="img" aria-label="CUNET dense depth map" hidden></canvas></div>
+      <section class="card method">
+        <div class="card-heading"><h2>Distance Transform Pooling (DTP)</h2><span>Radial range · IEEE TNNLS 2023</span></div>
+        <div class="image"><canvas id="dense_range_DTP" role="img" aria-label="Distance Transform Pooling dense range map" hidden></canvas></div>
+      </section>
+      <section class="card method">
+        <div class="card-heading"><h2>Surface Geometry Model (SGM)</h2><span>Z-axis depth · IEEE RA-L 2021</span></div>
+        <div class="image"><canvas id="dense_range_SGM" role="img" aria-label="Surface Geometry Model dense depth map" hidden></canvas></div>
       </section>
     </div>
   </main>
 
   <script>
-    const rangeFolders = ["sparse_range", "dense_range_BF", "dense_range_CUNET"];
+    const rangeFolders = ["sparse_range", "dense_range_BF", "dense_range_DTP", "dense_range_SGM"];
     const rawRoot = "https://raw.githubusercontent.com/kennedyk1/MID-sparse-dense/main/";
     const openedAsFile = location.protocol === "file:";
     const imageRoot = openedAsFile || location.hostname === "kennedyk1.github.io" ? rawRoot : "./";
