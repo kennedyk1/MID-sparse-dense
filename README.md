@@ -10,6 +10,10 @@ In **Sparse Range LiDAR**, use **Background** to show missing measurements in bl
 
 The viewer loads images directly from this repository on `raw.githubusercontent.com`.
 
+[Open the interactive Bilateral Filter](https://kennedyk1.github.io/MID-sparse-dense/bilateral-filter.html)
+
+The interactive page loads the original RGB image and LiDAR PLY for each frame. It projects the scan and computes the Bilateral Filter in your browser as you move the parameter sliders. Radial range is calculated from the PLY coordinates. [MID-3K camera and LiDAR calibration](https://github.com/kennedyk1/MID-3K/blob/main/calibration/color_lidar/calibration.yaml)
+
 ## Methods
 
 - **BF** — Bilateral Filter, IEEE ITSC 2016. [Paper](https://doi.org/10.1109/ITSC.2016.7795953)
