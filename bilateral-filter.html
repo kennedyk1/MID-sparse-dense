@@ -1,0 +1,339 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Interactive Bilateral Filter</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      font-family: "Segoe UI", system-ui, sans-serif;
+      background: #10151c;
+      color: #edf2f7;
+      --panel: #1a222d;
+      --border: #303c4a;
+      --muted: #afbdcc;
+      --accent: #a4e4dd;
+    }
+    * { box-sizing: border-box; }
+    [hidden] { display: none !important; }
+    body { margin: 0; }
+    main { max-width: 83rem; margin: auto; padding: 1.5rem clamp(1rem, 4vw, 2rem); }
+    header, .toolbar, .navigation, form, .viridis, .legend, .card-title, .background, .slider-label {
+      display: flex;
+      align-items: center;
+    }
+    header, .toolbar, .card-title { justify-content: space-between; gap: .75rem 1.25rem; flex-wrap: wrap; }
+    h1 { margin: 0; font-size: clamp(1.5rem, 4vw, 2rem); letter-spacing: -.03em; }
+    a { color: var(--accent); text-underline-offset: .2em; }
+    .toolbar { margin-block: 1rem; padding-block: .65rem; border-block: 1px solid var(--border); }
+    .navigation, form, .viridis, .background, .legend { gap: .6rem; }
+    button, input[type="number"], select {
+      min-height: 2.5rem;
+      padding: .4rem .75rem;
+      border: 1px solid var(--border);
+      border-radius: .4rem;
+      background: var(--panel);
+      color: inherit;
+      font: inherit;
+    }
+    button, select { cursor: pointer; }
+    button:hover:enabled { background: #283646; }
+    button:disabled { opacity: .65; cursor: default; }
+    :focus-visible { outline: 2px solid #96d9f0; outline-offset: 3px; }
+    input[type="number"] { width: 5.5rem; }
+    input[type="range"], input[type="checkbox"] { accent-color: var(--accent); }
+    .viridis { padding: .5rem .85rem; border: 1px solid #58938b; border-radius: .45rem; background: #173632; color: var(--accent); font-weight: 650; }
+    .viridis input { margin: 0; width: 1rem; height: 1rem; }
+    #counter, output { font-variant-numeric: tabular-nums; }
+    fieldset { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: .9rem 1rem; margin: 0; padding: .8rem 1rem 1rem; border: 1px solid var(--border); border-radius: .5rem; }
+    fieldset legend { padding-inline: .35rem; font-weight: 650; }
+    .slider-label { justify-content: space-between; gap: .4rem; margin-bottom: .35rem; font-size: .875rem; }
+    output { color: var(--accent); }
+    input[type="range"] { display: block; width: 100%; margin: 0; }
+    #status { margin: .75rem 0; color: var(--muted); overflow-wrap: anywhere; }
+    #status[data-error] { color: #ffb8ad; }
+    .grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: .75rem; }
+    .card { border: 1px solid var(--border); border-radius: .65rem; overflow: hidden; background: var(--panel); }
+    .card-title { min-height: 3.4rem; padding: .5rem .75rem; }
+    .card h2 { font-size: 1rem; margin: 0; }
+    .background { position: relative; color: var(--muted); font-size: .875rem; }
+    .background select { appearance: none; min-height: 2rem; padding: .2rem 1.65rem .2rem .55rem; color: #edf2f7; }
+    .background::after { content: ""; position: absolute; inset-inline-end: .65rem; inset-block-start: 50%; width: .35rem; height: .35rem; border: solid currentColor; border-width: 0 1px 1px 0; transform: translateY(-65%) rotate(45deg); pointer-events: none; }
+    .image { aspect-ratio: 5 / 4; background: #12161a; }
+    #sparse-image { background: black; }
+    .image > * { display: block; width: 100%; height: 100%; object-fit: contain; }
+    .legend { margin-top: .75rem; flex-wrap: wrap; color: var(--muted); font-size: .875rem; }
+    #gradient { width: clamp(6rem, 20vw, 13rem); height: .6rem; border-radius: .25rem; }
+    @media (43rem < width < 66rem) { .card-title { min-height: 4.8rem; } }
+    @media (max-width: 54rem) { fieldset { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+    @media (max-width: 43rem) { .grid { grid-template-columns: 1fr; } }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <h1>Interactive Bilateral Filter</h1>
+      <a href="./index.html">Back to comparison</a>
+    </header>
+    <div class="toolbar">
+      <div class="navigation" role="group" aria-label="Frame navigation">
+        <button id="previous" type="button" disabled>Previous</button>
+        <span id="counter" aria-label="Current frame">0 / 0</span>
+        <button id="next" type="button" disabled>Next</button>
+      </div>
+      <form id="frame-jump">
+        <label for="frame-number">Go to frame</label>
+        <input id="frame-number" type="number" inputmode="numeric" min="1" step="1" required disabled>
+        <button id="frame-go" type="submit" disabled>Go</button>
+      </form>
+      <label class="viridis"><input id="viridis" type="checkbox" checked autocomplete="off"> Show Viridis Colormap</label>
+    </div>
+
+    <fieldset id="parameters">
+      <legend>Bilateral Filter parameters</legend>
+      <div>
+        <div class="slider-label"><label for="window-size">Window size</label><output id="window-value" for="window-size">13 px</output></div>
+        <input id="window-size" type="range" min="1" max="31" step="2" value="13">
+      </div>
+      <div>
+        <div class="slider-label"><label for="jump-threshold">Jump threshold</label><output id="jump-value" for="jump-threshold">0.080</output></div>
+        <input id="jump-threshold" type="range" min="0" max="0.4" step="0.005" value="0.08">
+      </div>
+      <div>
+        <div class="slider-label"><label for="cluster-points">Minimum cluster points</label><output id="cluster-value" for="cluster-points">2</output></div>
+        <input id="cluster-points" type="range" min="1" max="20" step="1" value="2">
+      </div>
+      <div>
+        <div class="slider-label"><label for="ratio-threshold">Foreground/background ratio</label><output id="ratio-value" for="ratio-threshold">0.15</output></div>
+        <input id="ratio-threshold" type="range" min="0" max="1" step="0.01" value="0.15">
+      </div>
+    </fieldset>
+
+    <p id="status" role="status">Loading the frame list and calibration…</p>
+    <div class="grid" aria-label="RGB and LiDAR comparison">
+      <section class="card">
+        <div class="card-title"><h2>RGB</h2></div>
+        <div class="image"><img id="rgb" alt="RGB image for the current frame" hidden></div>
+      </section>
+      <section class="card">
+        <div class="card-title">
+          <h2>Sparse Range LiDAR</h2>
+          <label class="background">Background
+            <select id="sparse-background" aria-label="Sparse Range LiDAR background">
+              <option value="black">Black</option>
+              <option value="white">White</option>
+            </select>
+          </label>
+        </div>
+        <div class="image" id="sparse-image"><canvas id="sparse" role="img" aria-label="Sparse LiDAR range projected onto the RGB frame" hidden></canvas></div>
+      </section>
+      <section class="card">
+        <div class="card-title"><h2>Bilateral Filter</h2></div>
+        <div class="image"><canvas id="dense" role="img" aria-label="Range densified with the Bilateral Filter" hidden></canvas></div>
+      </section>
+    </div>
+    <div id="legend" class="legend" hidden>
+      <span>Shared range scale</span><span id="low"></span><canvas id="gradient" width="256" height="1" aria-hidden="true"></canvas><span id="high"></span>
+    </div>
+  </main>
+
+  <script>
+    const byId = id => document.getElementById(id);
+    const rawRoot = "https://raw.githubusercontent.com/kennedyk1/";
+    const rgb = byId("rgb");
+    const sparseCanvas = byId("sparse");
+    const denseCanvas = byId("dense");
+    const viridis = byId("viridis");
+    const background = byId("sparse-background");
+    const statusLine = byId("status");
+    const previous = byId("previous");
+    const next = byId("next");
+    const frameNumber = byId("frame-number");
+    const format = new Intl.NumberFormat("en", { maximumFractionDigits: 2 });
+    const palette = Uint8Array.from(atob("RAFURAJWRQRXRQVZRgdaRghcRgpdRgteRw1gRw5hRxBjRxFkRxNlSBRnSBZoSBdpSBhqSBpsSBttSBxuSB1vSB9wSCBxSCFzSCN0SCR1SCV2SCZ3SCh4SCl5Ryp6Ryx6Ry17Ry58Ry99RjB+RjJ+RjN/RjSARTWBRTeBRTiCRDmDRDqDRDuEQz2EQz6FQj+FQkCGQkGGQUKHQUSHQEWIQEaIP0eIP0iJPkmJPkqJPkyKPU2KPU6KPE+KPFCLO1GLO1KLOlOLOlSMOVWMOVaMOFiMOFmMN1qMN1uNNlyNNl2NNV6NNV+NNGCNNGGNM2KNM2ONMmSOMmWOMWaOMWeOMWiOMGmOMGqOL2uOL2yOLm2OLm6OLm+OLXCOLXGOLHGOLHKOLHOOK3SOK3WOKnaOKneOKniOKXmOKXqOKXuOKHyOKH2OJ36OJ3+OJ4COJoGOJoKOJoKOJYOOJYSOJYWOJIaOJIeOI4iOI4mOI4qNIouNIoyNIo2NIY6NIY+NIZCNIZGMIJKMIJKMIJOMH5SMH5WLH5aLH5eLH5iLH5mKH5qKHpuKHpyJHp2JH56JH5+IH6CIH6GIH6GHH6KHIKOGIKSGIaWFIaaFIqeFIqiEI6mDJKqDJauCJayCJq2BJ62BKK6AKa9/KrB/LLF+LbJ9LrN8L7R8MbV7MrZ6NLZ5Nbd5N7h4OLl3Orp2O7t1Pbx0P7xzQL1yQr5xRL9wRsBvSMFuSsFtTMJsTsNrUMRqUsVpVMVoVsZnWMdlWshkXMhjXsliYMpgY8tfZcteZ8xcac1bbM1abs5YcM9Xc9BWddBUd9FTetFRfNJQf9NOgdNNhNRLhtVJidVIi9ZGjtZFkNdDk9dBldhAmNg+m9k8ndk7oNo5oto3pds2qNs0qtwyrdwwsN0vst0ttd4ruN4put4ovd8mwN8lwt8jxeAhyOAgyuEfzeEd0OEc0uIb1eIa2OIZ2uMZ3eMY3+MY4uQY5eQZ5+QZ6uUa7OUb7+Uc8eUd9OYe9uYg+OYh++cj/ecl"), character => character.charCodeAt(0));
+    const gray = new Uint8Array(256 * 3);
+    for (let i = 0; i < 256; i++) gray.fill(Math.round(40 + i * 215 / 255), i * 3, i * 3 + 3);
+    const parameters = [
+      { key: "windowSize", input: byId("window-size"), output: byId("window-value"), text: value => `${value} px` },
+      { key: "jumpThreshold", input: byId("jump-threshold"), output: byId("jump-value"), text: value => value.toFixed(3) },
+      { key: "minClusterPoints", input: byId("cluster-points"), output: byId("cluster-value"), text: value => String(value) },
+      { key: "ratioThreshold", input: byId("ratio-threshold"), output: byId("ratio-value"), text: value => value.toFixed(2) },
+    ];
+    let frames = [];
+    let calibration;
+    let view;
+    let revision = 0;
+    let timer;
+
+    function setStatus(message, error = false) {
+      statusLine.textContent = message;
+      statusLine.toggleAttribute("data-error", error);
+    }
+
+    async function request(url, signal) {
+      const response = await fetch(url, { signal });
+      if (!response.ok) throw new Error(`${url.split("/").pop()} returned HTTP ${response.status}.`);
+      return response;
+    }
+
+    function scaleFor(sparse) {
+      const values = sparse.filter(Number.isFinite).sort();
+      if (!values.length) return [0, 1];
+      const low = values[Math.floor((values.length - 1) * .02)];
+      const high = values[Math.ceil((values.length - 1) * .98)];
+      return [low, high > low ? high : low + 1];
+    }
+
+    function drawMap(canvas, values, colors) {
+      const { width, height, scale: [low, high] } = view;
+      canvas.width = width;
+      canvas.height = height;
+      const context = canvas.getContext("2d");
+      const image = context.createImageData(width, height);
+      const factor = 255 / (high - low);
+      for (let i = 0; i < values.length; i++) {
+        const pixel = i * 4;
+        if (Number.isFinite(values[i])) {
+          const color = 3 * Math.max(0, Math.min(255, Math.round((values[i] - low) * factor)));
+          image.data[pixel] = colors[color];
+          image.data[pixel + 1] = colors[color + 1];
+          image.data[pixel + 2] = colors[color + 2];
+          image.data[pixel + 3] = 255;
+        }
+      }
+      context.putImageData(image, 0, 0);
+      canvas.hidden = false;
+    }
+
+    function drawMaps() {
+      if (!view?.sparse) return;
+      const colors = viridis.checked ? palette : gray;
+      drawMap(sparseCanvas, view.sparse, colors);
+      if (view.dense) drawMap(denseCanvas, view.dense, colors);
+      const context = byId("gradient").getContext("2d");
+      const line = context.createImageData(256, 1);
+      for (let i = 0; i < 256; i++) {
+        line.data.set(colors.subarray(i * 3, i * 3 + 3), i * 4);
+        line.data[i * 4 + 3] = 255;
+      }
+      context.putImageData(line, 0, 0);
+      byId("low").textContent = `≤ ${format.format(view.scale[0])} m`;
+      byId("high").textContent = `≥ ${format.format(view.scale[1])} m`;
+      byId("legend").hidden = false;
+    }
+
+    function runFilter() {
+      if (!view?.sparse || view.busy || view.completed === revision) return;
+      const settings = Object.fromEntries(parameters.map(({ key, input }) => [key, input.valueAsNumber]));
+      view.busy = true;
+      setStatus(`${view.name} · Running Bilateral Filter…`);
+      view.worker.postMessage({ type: "densify", revision, settings });
+    }
+
+    function handleResult(current, message) {
+      if (current !== view) return;
+      if (message.type === "sparse") {
+        if (rgb.naturalWidth !== message.width || rgb.naturalHeight !== message.height) {
+          setStatus("The RGB image size does not match calibration.yaml.", true);
+          return;
+        }
+        current.sparse = message.sparse;
+        current.width = message.width;
+        current.height = message.height;
+        current.pointCount = message.count;
+        current.scale = scaleFor(message.sparse);
+        drawMaps();
+        runFilter();
+      } else if (message.type === "dense") {
+        current.busy = false;
+        if (message.revision !== revision) {
+          runFilter();
+          return;
+        }
+        current.completed = message.revision;
+        current.dense = message.dense;
+        drawMap(denseCanvas, current.dense, viridis.checked ? palette : gray);
+        setStatus(`${current.name} · ${format.format(current.pointCount)} projected points · ${Math.round(message.elapsed)} ms`);
+      } else if (message.type === "error") {
+        current.busy = false;
+        setStatus(message.message, true);
+      }
+    }
+
+    async function showFrame(index) {
+      clearTimeout(timer);
+      view?.controller.abort();
+      view?.worker?.terminate();
+      const current = { index, name: frames[index], controller: new AbortController() };
+      view = current;
+      previous.disabled = index === 0;
+      next.disabled = index + 1 === frames.length;
+      frameNumber.value = String(index + 1);
+      byId("counter").textContent = `${index + 1} / ${frames.length}`;
+      for (const panel of [rgb, sparseCanvas, denseCanvas, byId("legend")]) panel.hidden = true;
+      setStatus(`${current.name} · Loading RGB and LiDAR…`);
+      const stem = encodeURIComponent(current.name.slice(0, -4));
+      rgb.src = `${rawRoot}MID-3K-rgb/main/images/${stem}.png`;
+      try {
+        const rgbReady = rgb.decode().then(() => { if (view === current) rgb.hidden = false; });
+        const plyReady = request(`${rawRoot}MID-3K-pcd/main/pcd/${stem}.ply`, current.controller.signal)
+          .then(response => response.arrayBuffer());
+        const [, ply] = await Promise.all([rgbReady, plyReady]);
+        if (view !== current) return;
+        setStatus(`${current.name} · Projecting the LiDAR scan…`);
+        current.worker = new Worker("./bilateral-filter-worker.js");
+        current.worker.onmessage = event => handleResult(current, event.data);
+        current.worker.onerror = event => {
+          if (view === current) setStatus(event.message || "Could not start the Bilateral Filter worker.", true);
+        };
+        current.worker.postMessage({ type: "prepare", calibration, ply }, [ply]);
+      } catch (error) {
+        if (view === current) setStatus(`Could not load ${current.name}. ${error.message}`, true);
+      }
+    }
+
+    function updateBackground() { byId("sparse-image").style.backgroundColor = background.value; }
+    background.addEventListener("change", updateBackground);
+    updateBackground();
+    viridis.addEventListener("change", drawMaps);
+    for (const { input, output, text } of parameters) {
+      input.addEventListener("input", () => {
+        output.textContent = text(input.valueAsNumber);
+        revision++;
+        clearTimeout(timer);
+        timer = setTimeout(runFilter, 120);
+      });
+    }
+    previous.addEventListener("click", () => showFrame(view.index - 1));
+    next.addEventListener("click", () => showFrame(view.index + 1));
+    byId("frame-jump").addEventListener("submit", event => {
+      event.preventDefault();
+      const index = frameNumber.valueAsNumber - 1;
+      if (Number.isInteger(index) && index >= 0 && index < frames.length) showFrame(index);
+    });
+
+    async function start() {
+      try {
+        const [names, yaml] = await Promise.all([
+          request("./frames.json").then(response => response.json()),
+          request(`${rawRoot}MID-3K/main/calibration/color_lidar/calibration.yaml`).then(response => response.text()),
+        ]);
+        if (!Array.isArray(names) || !names.length || names.some(name => typeof name !== "string" || !/^\d{6}_\d{19}\.png$/.test(name))) {
+          throw new Error("Invalid frame list.");
+        }
+        frames = names;
+        calibration = yaml;
+        frameNumber.max = String(frames.length);
+        frameNumber.disabled = false;
+        byId("frame-go").disabled = false;
+        await showFrame(0);
+      } catch (error) {
+        setStatus(error.message, true);
+      }
+    }
+
+    start();
+  </script>
+</body>
+</html>

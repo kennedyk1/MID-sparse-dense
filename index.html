@@ -25,7 +25,10 @@
       align-items: center;
     }
     .toolbar { justify-content: space-between; gap: .75rem 1.25rem; flex-wrap: wrap; }
+    header { display: flex; align-items: center; justify-content: space-between; gap: .75rem 1rem; flex-wrap: wrap; }
     h1 { margin: 0; font-size: clamp(1.5rem, 4vw, 2rem); letter-spacing: -.03em; }
+    .interactive-link { display: inline-block; padding: .55rem .85rem; border: 1px solid #58938b; border-radius: .45rem; background: #173632; color: var(--accent); font-size: .9rem; font-weight: 650; text-decoration: none; }
+    .interactive-link:hover { background: #224641; }
     button, .frame-jump input {
       min-height: 2.5rem;
       padding: .5rem .9rem;
@@ -112,6 +115,7 @@
   <main>
     <header>
       <h1>RGB and LiDAR Viewer</h1>
+      <a class="interactive-link" href="./bilateral-filter.html">Test the Bilateral Filter</a>
     </header>
 
     <div class="toolbar">
