@@ -1,0 +1,430 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>RGB and LiDAR Viewer</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      font-family: "Segoe UI", system-ui, sans-serif;
+      background: #10151c;
+      color: #edf2f7;
+      --panel: #1a222d;
+      --border: #303c4a;
+      --muted: #afbdcc;
+      --accent: #a4e4dd;
+    }
+
+    * { box-sizing: border-box; }
+    [hidden] { display: none !important; }
+    body { margin: 0; }
+    main { max-width: 64rem; margin-inline: auto; padding: 1.5rem clamp(1rem, 3vw, 2rem); }
+    header, .toolbar, .navigation, .checkbox, .card-heading, .legend, .legend-labels {
+      display: flex;
+      align-items: center;
+    }
+    header, .toolbar { justify-content: space-between; gap: .75rem 1.25rem; flex-wrap: wrap; }
+    h1 { margin: 0; font-size: clamp(1.5rem, 4vw, 2rem); letter-spacing: -.03em; }
+    .folder { display: inline-flex; position: relative; justify-content: center; }
+    .folder input { position: absolute; width: 1px; height: 1px; opacity: 0; }
+    button, .folder {
+      min-height: 2.5rem;
+      padding: .5rem .9rem;
+      border: 1px solid var(--border);
+      border-radius: .45rem;
+      background: var(--panel);
+      color: inherit;
+      font-family: inherit;
+      font-size: .9rem;
+      font-weight: 600;
+      line-height: 1.5;
+      cursor: pointer;
+    }
+    .folder { align-items: center; background: var(--accent); border-color: transparent; color: #142320; }
+    button:hover:enabled { background: #283646; }
+    .folder:hover { background: #c1eee8; }
+    button:disabled { color: #8594a4; cursor: default; }
+    :focus-visible, .folder:has(input:focus-visible) { outline: 2px solid #96d9f0; outline-offset: 3px; }
+    .toolbar { margin-block: 1rem .6rem; padding-block: .65rem; border-block: 1px solid var(--border); }
+    .navigation, .checkbox { gap: .6rem; }
+    .checkbox { min-height: 2.5rem; cursor: pointer; }
+    .checkbox input { margin: 0; width: 1.1rem; height: 1.1rem; accent-color: var(--accent); }
+    #counter { min-width: 6ch; text-align: center; font-variant-numeric: tabular-nums; }
+    #status { min-height: 1.35em; margin: .6rem 0; color: var(--muted); overflow-wrap: anywhere; }
+    #status[data-error] { color: #ffb8ad; }
+    code { color: #d5e5ed; font-size: .95em; }
+    .legend { gap: .75rem; margin: .75rem 0; font-size: .875rem; color: var(--muted); flex-wrap: wrap; }
+    .legend-labels { gap: .5rem; color: #dce6ee; font-variant-numeric: tabular-nums; }
+    .legend canvas { display: block; width: clamp(5rem, 20vw, 12rem); height: .6rem; border-radius: .25rem; }
+    .swatch { display: inline-block; width: .75rem; height: .75rem; margin-right: .35rem; vertical-align: -.06rem; background: #12161a; border: 1px solid var(--border); }
+    .grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .75rem; }
+    .card { background: var(--panel); border: 1px solid var(--border); border-radius: .6rem; overflow: hidden; }
+    .card-heading { align-items: baseline; justify-content: space-between; flex-wrap: wrap; gap: .15rem .75rem; padding: .55rem .75rem; }
+    .card h2 { margin: 0; font-size: 1rem; font-weight: 600; }
+    .card-heading span { color: var(--muted); font-size: .875rem; }
+    .image { aspect-ratio: 5 / 4; background: #12161a; }
+    .image > * { display: block; width: 100%; height: 100%; object-fit: contain; }
+    @media (max-width: 40rem) { .grid { grid-template-columns: 1fr; } }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <h1>RGB and LiDAR Viewer</h1>
+      <label class="folder">
+        <input id="folder" type="file" webkitdirectory>
+        <span>Open folder</span>
+      </label>
+    </header>
+
+    <div class="toolbar">
+      <div class="navigation" role="group" aria-label="Sample navigation">
+        <button id="previous" type="button" disabled>Previous</button>
+        <span id="counter" aria-label="Current sample">0 / 0</span>
+        <button id="next" type="button" disabled>Next</button>
+      </div>
+      <label class="checkbox"><input id="viridis" type="checkbox"> Viridis</label>
+    </div>
+
+    <p id="status" role="status">Select the <code>MID-sparse-dense</code> folder to load the samples.</p>
+
+    <div id="legend" class="legend" hidden>
+      <span>Shared scale</span>
+      <span class="legend-labels"><span id="low"></span><canvas id="gradient" width="256" height="1" aria-hidden="true"></canvas><span id="high"></span></span>
+      <span><span class="swatch"></span>No data</span>
+    </div>
+
+    <div id="images" class="grid" aria-label="Sample images">
+      <section class="card">
+        <div class="card-heading"><h2>RGB</h2></div>
+        <div class="image"><img id="rgb" alt="RGB image for the current sample" hidden></div>
+      </section>
+      <section class="card">
+        <div class="card-heading"><h2>Sparse Range LiDAR</h2><span>Radial range</span></div>
+        <div class="image"><canvas id="sparse_range" role="img" aria-label="Sparse LiDAR range map" hidden></canvas></div>
+      </section>
+      <section class="card">
+        <div class="card-heading"><h2>Modified Bilateral Filter</h2><span>Radial range</span></div>
+        <div class="image"><canvas id="dense_range_BF" role="img" aria-label="Modified Bilateral Filter dense range map" hidden></canvas></div>
+      </section>
+      <section class="card">
+        <div class="card-heading"><h2>CUNET</h2><span>Z-axis depth</span></div>
+        <div class="image"><canvas id="dense_range_CUNET" role="img" aria-label="CUNET dense depth map" hidden></canvas></div>
+      </section>
+    </div>
+  </main>
+
+  <script>
+    const rangeFolders = ["sparse_range", "dense_range_BF", "dense_range_CUNET"];
+    const folders = ["rgb", ...rangeFolders];
+    const rawRoot = "https://raw.githubusercontent.com/kennedyk1/MID-sparse-dense/main/";
+    const openedAsFile = location.protocol === "file:";
+    const imageRoot = openedAsFile || location.hostname === "kennedyk1.github.io" ? rawRoot : "./";
+    const byId = id => document.getElementById(id);
+    const folderInput = byId("folder");
+    const previous = byId("previous");
+    const next = byId("next");
+    const viridis = byId("viridis");
+    const rgb = byId("rgb");
+    const legend = byId("legend");
+    const images = byId("images");
+    const statusLine = byId("status");
+    const canvases = rangeFolders.map(byId);
+    const metres = new Intl.NumberFormat("en", { maximumFractionDigits: 3 });
+    const noDataColor = [18, 22, 26];
+
+    // OpenCV COLORMAP_VIRIDIS palette with 256 RGB colors.
+    const viridisColors = Uint8Array.from(atob("RAFURAJWRQRXRQVZRgdaRghcRgpdRgteRw1gRw5hRxBjRxFkRxNlSBRnSBZoSBdpSBhqSBpsSBttSBxuSB1vSB9wSCBxSCFzSCN0SCR1SCV2SCZ3SCh4SCl5Ryp6Ryx6Ry17Ry58Ry99RjB+RjJ+RjN/RjSARTWBRTeBRTiCRDmDRDqDRDuEQz2EQz6FQj+FQkCGQkGGQUKHQUSHQEWIQEaIP0eIP0iJPkmJPkqJPkyKPU2KPU6KPE+KPFCLO1GLO1KLOlOLOlSMOVWMOVaMOFiMOFmMN1qMN1uNNlyNNl2NNV6NNV+NNGCNNGGNM2KNM2ONMmSOMmWOMWaOMWeOMWiOMGmOMGqOL2uOL2yOLm2OLm6OLm+OLXCOLXGOLHGOLHKOLHOOK3SOK3WOKnaOKneOKniOKXmOKXqOKXuOKHyOKH2OJ36OJ3+OJ4COJoGOJoKOJoKOJYOOJYSOJYWOJIaOJIeOI4iOI4mOI4qNIouNIoyNIo2NIY6NIY+NIZCNIZGMIJKMIJKMIJOMH5SMH5WLH5aLH5eLH5iLH5mKH5qKHpuKHpyJHp2JH56JH5+IH6CIH6GIH6GHH6KHIKOGIKSGIaWFIaaFIqeFIqiEI6mDJKqDJauCJayCJq2BJ62BKK6AKa9/KrB/LLF+LbJ9LrN8L7R8MbV7MrZ6NLZ5Nbd5N7h4OLl3Orp2O7t1Pbx0P7xzQL1yQr5xRL9wRsBvSMFuSsFtTMJsTsNrUMRqUsVpVMVoVsZnWMdlWshkXMhjXsliYMpgY8tfZcteZ8xcac1bbM1abs5YcM9Xc9BWddBUd9FTetFRfNJQf9NOgdNNhNRLhtVJidVIi9ZGjtZFkNdDk9dBldhAmNg+m9k8ndk7oNo5oto3pds2qNs0qtwyrdwwsN0vst0ttd4ruN4put4ovd8mwN8lwt8jxeAhyOAgyuEfzeEd0OEc0uIb1eIa2OIZ2uMZ3eMY3+MY4uQY5eQZ5+QZ6uUa7OUb7+Uc8eUd9OYe9uYg+OYh++cj/ecl"), character => character.charCodeAt(0));
+    const grayscale = new Uint8Array(256 * 3);
+    for (let i = 0; i < 256; i++) {
+      grayscale.fill(Math.round(40 + i * 215 / 255), i * 3, i * 3 + 3);
+    }
+
+    let samples = [];
+    let index = 0;
+    let activeRequest;
+    let displayed = null;
+
+    function setStatus(message, error = false) {
+      statusLine.textContent = message;
+      statusLine.toggleAttribute("data-error", error);
+    }
+
+    function startRequest() {
+      activeRequest?.abort();
+      activeRequest = new AbortController();
+      return activeRequest.signal;
+    }
+
+    async function loadRepository() {
+      const signal = startRequest();
+      setStatus("Loading samples from the repository…");
+      try {
+        const response = await fetch(`${openedAsFile ? rawRoot : "./"}frames.json`, { signal });
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        const names = await response.json();
+        if (!Array.isArray(names) || !names.length ||
+            names.some(name => typeof name !== "string" || !/^\d{6}_\d{19}\.png$/.test(name))) {
+          throw new Error("Invalid sample list.");
+        }
+        if (signal.aborted) return;
+        samples = names.map(name => ({ name }));
+        await showSample(0);
+      } catch (error) {
+        if (!signal.aborted) {
+          setStatus(`Could not read frames.json (${error.message}). Use Open folder to load local images.`, true);
+        }
+      }
+    }
+
+    async function loadPng(sample, folder, signal) {
+      if (sample.files) return sample.files.get(folder);
+      const path = `${imageRoot}${folder}/${encodeURIComponent(sample.name)}`;
+      const response = await fetch(path, { signal });
+      if (!response.ok) throw new Error(`${folder}/${sample.name} (HTTP ${response.status})`);
+      return response.blob();
+    }
+
+    function indexFiles(files) {
+      const groups = new Map();
+      for (const file of files) {
+        const parts = file.webkitRelativePath.split("/");
+        if (parts.length !== 3) continue;
+        const [, folder, name] = parts;
+        if (!folders.includes(folder) || !/\.png$/i.test(name)) continue;
+        if (!groups.has(name)) groups.set(name, new Map());
+        groups.get(name).set(folder, file);
+      }
+      return [...groups.keys()].sort().flatMap(name => {
+        const group = groups.get(name);
+        return group.size === folders.length ? [{ name, files: group }] : [];
+      });
+    }
+
+    function paeth(left, up, diagonal) {
+      const estimate = left + up - diagonal;
+      const distanceLeft = Math.abs(estimate - left);
+      const distanceUp = Math.abs(estimate - up);
+      const distanceDiagonal = Math.abs(estimate - diagonal);
+      if (distanceLeft <= distanceUp && distanceLeft <= distanceDiagonal) return left;
+      return distanceUp <= distanceDiagonal ? up : diagonal;
+    }
+
+    async function decodeRangePng(file) {
+      const bytes = new Uint8Array(await file.arrayBuffer());
+      const view = new DataView(bytes.buffer);
+      const text = new TextDecoder("iso-8859-1");
+      if (bytes.length < 33 || view.getUint32(0) !== 0x89504e47 || view.getUint32(4) !== 0x0d0a1a0a) {
+        throw new Error("Invalid PNG file.");
+      }
+
+      const width = view.getUint32(16);
+      const height = view.getUint32(20);
+      if (!width || !height || bytes[24] !== 16 || bytes[25] !== 0 || bytes[28] !== 0) {
+        throw new Error("The map must be a non-interlaced 16-bit grayscale PNG.");
+      }
+
+      const metadata = new Map();
+      const data = [];
+      for (let pos = 8; pos + 12 <= bytes.length;) {
+        const size = view.getUint32(pos);
+        const type = text.decode(bytes.subarray(pos + 4, pos + 8));
+        const end = pos + 8 + size;
+        if (end + 4 > bytes.length) throw new Error("Incomplete PNG file.");
+        const chunk = bytes.subarray(pos + 8, end);
+        if (type === "IDAT") data.push(chunk);
+        if (type === "tEXt") {
+          const separator = chunk.indexOf(0);
+          if (separator > 0) {
+            metadata.set(text.decode(chunk.subarray(0, separator)), text.decode(chunk.subarray(separator + 1)));
+          }
+        }
+        if (type === "IEND") break;
+        pos = end + 4;
+      }
+
+      const scale = Number(metadata.get("scale"));
+      const offset = Number(metadata.get("offset"));
+      const nodata = Number(metadata.get("nodata"));
+      const modality = metadata.get("modality");
+      if (metadata.get("unit") !== "m" || !Number.isFinite(scale) || scale <= 0 ||
+          !Number.isFinite(offset) || !Number.isInteger(nodata) || nodata < 0 || nodata > 65535 ||
+          !["range", "depth_z"].includes(modality)) {
+        throw new Error("The map needs valid calibration metadata in meters.");
+      }
+
+      const stream = new Blob(data).stream().pipeThrough(new DecompressionStream("deflate"));
+      const raw = new Uint8Array(await new Response(stream).arrayBuffer());
+      const stride = width * 2 + 1;
+      if (raw.length !== stride * height) throw new Error("Incomplete PNG data.");
+
+      // Reverse PNG filters byte by byte before combining each pixel's two bytes.
+      const codes = new Uint16Array(width * height);
+      for (let y = 0; y < height; y++) {
+        const row = y * stride;
+        const filter = raw[row];
+        if (filter > 4) throw new Error("Invalid PNG filter.");
+        for (let x = 1; x < stride; x++) {
+          const left = x > 2 ? raw[row + x - 2] : 0;
+          const up = y > 0 ? raw[row + x - stride] : 0;
+          const diagonal = x > 2 && y > 0 ? raw[row + x - stride - 2] : 0;
+          switch (filter) {
+            case 1: raw[row + x] += left; break;
+            case 2: raw[row + x] += up; break;
+            case 3: raw[row + x] += (left + up) >> 1; break;
+            case 4: raw[row + x] += paeth(left, up, diagonal); break;
+          }
+        }
+        for (let x = 0; x < width; x++) {
+          const pos = row + 1 + x * 2;
+          codes[y * width + x] = (raw[pos] << 8) | raw[pos + 1];
+        }
+      }
+
+      // Range PNGs reserve code 0 and encode the first measurement level as 1.
+      const firstCode = modality === "range" ? 1 : 0;
+      return { width, height, codes, nodata, scale, offset, firstCode };
+    }
+
+    function sharedLimits(maps) {
+      const values = new Float64Array(maps.reduce((size, map) => size + map.codes.length, 0));
+      let size = 0;
+      for (const { codes, nodata, scale, offset, firstCode } of maps) {
+        for (const code of codes) {
+          if (code !== nodata) values[size++] = (code - firstCode) * scale + offset;
+        }
+      }
+      if (!size) return [0, 1];
+      const sorted = values.subarray(0, size).sort();
+      let low = sorted[Math.floor((size - 1) * .02)];
+      let high = sorted[Math.ceil((size - 1) * .98)];
+      if (low === high) {
+        low = sorted[0];
+        high = sorted[size - 1];
+      }
+      return [low, high === low ? low + Math.min(...maps.map(map => map.scale)) : high];
+    }
+
+    function drawMap(canvas, map, low, high, colors) {
+      const { width, height, codes, nodata, scale, offset, firstCode } = map;
+      canvas.width = width;
+      canvas.height = height;
+      const context = canvas.getContext("2d");
+      const image = context.createImageData(width, height);
+      const factor = 255 / (high - low);
+      for (let i = 0; i < codes.length; i++) {
+        const code = codes[i];
+        const pixel = i * 4;
+        if (code === nodata) {
+          image.data.set(noDataColor, pixel);
+        } else {
+          const value = (code - firstCode) * scale + offset;
+          const color = 3 * Math.max(0, Math.min(255, Math.round((value - low) * factor)));
+          image.data[pixel] = colors[color];
+          image.data[pixel + 1] = colors[color + 1];
+          image.data[pixel + 2] = colors[color + 2];
+        }
+        image.data[pixel + 3] = 255;
+      }
+      context.putImageData(image, 0, 0);
+      canvas.hidden = false;
+    }
+
+    function drawMaps() {
+      if (!displayed) return;
+      const { maps, limits: [low, high] } = displayed;
+      const colors = viridis.checked ? viridisColors : grayscale;
+      maps.forEach((map, i) => drawMap(canvases[i], map, low, high, colors));
+      const context = byId("gradient").getContext("2d");
+      const gradient = context.createImageData(256, 1);
+      for (let i = 0; i < 256; i++) {
+        gradient.data.set(colors.subarray(i * 3, i * 3 + 3), i * 4);
+        gradient.data[i * 4 + 3] = 255;
+      }
+      context.putImageData(gradient, 0, 0);
+      byId("low").textContent = `≤ ${metres.format(low)} m`;
+      byId("high").textContent = `≥ ${metres.format(high)} m`;
+      legend.hidden = false;
+    }
+
+    function clearImages() {
+      rgb.hidden = true;
+      rgb.removeAttribute("src");
+      for (const canvas of canvases) canvas.hidden = true;
+      legend.hidden = true;
+      if (displayed) URL.revokeObjectURL(displayed.url);
+      displayed = null;
+    }
+
+    async function showSample(newIndex) {
+      const signal = startRequest();
+      clearImages();
+      index = newIndex;
+      const sample = samples[index];
+      previous.disabled = index <= 0;
+      next.disabled = index + 1 >= samples.length;
+      byId("counter").textContent = `${sample ? index + 1 : 0} / ${samples.length}`;
+      images.setAttribute("aria-busy", String(Boolean(sample)));
+      if (!sample) return;
+
+      setStatus(`Loading ${sample.name}…`);
+      let url;
+      try {
+        const [rgbFile, maps] = await Promise.all([
+          loadPng(sample, "rgb", signal),
+          Promise.all(rangeFolders.map(async folder => {
+            const file = await loadPng(sample, folder, signal);
+            try {
+              return await decodeRangePng(file);
+            } catch (error) {
+              throw new Error(`${folder}: ${error.message}`);
+            }
+          })),
+        ]);
+        if (signal.aborted) return;
+        url = URL.createObjectURL(rgbFile);
+        const preview = new Image();
+        preview.src = url;
+        await preview.decode();
+        if (signal.aborted) return;
+        displayed = { url, maps, limits: sharedLimits(maps) };
+        drawMaps();
+        rgb.src = url;
+        rgb.hidden = false;
+        setStatus(sample.name);
+      } catch (error) {
+        if (!signal.aborted) {
+          clearImages();
+          setStatus(`Could not load ${sample.name}. ${error.message}`, true);
+        }
+      } finally {
+        if (url && displayed?.url !== url) URL.revokeObjectURL(url);
+        if (!signal.aborted) images.setAttribute("aria-busy", "false");
+      }
+    }
+
+    folderInput.addEventListener("change", () => {
+      if (!folderInput.files.length) return;
+      samples = indexFiles(folderInput.files);
+      folderInput.value = "";
+      showSample(0);
+      if (!samples.length) {
+        setStatus("No complete samples found. Select the folder that contains rgb, sparse_range, dense_range_BF, and dense_range_CUNET.", true);
+      }
+    });
+    previous.addEventListener("click", () => showSample(index - 1));
+    next.addEventListener("click", () => showSample(index + 1));
+    viridis.addEventListener("change", drawMaps);
+    document.addEventListener("keydown", event => {
+      if (event.altKey || event.ctrlKey || event.metaKey || event.shiftKey || event.target.matches("input")) return;
+      const button = event.key === "ArrowLeft" ? previous : event.key === "ArrowRight" ? next : null;
+      if (button && !button.disabled) {
+        event.preventDefault();
+        button.click();
+      }
+    });
+    loadRepository();
+  </script>
+</body>
+</html>
