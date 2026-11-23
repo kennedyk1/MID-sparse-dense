@@ -1,6 +1,6 @@
 # MID-sparse-dense
 
-Compare RGB, sparse LiDAR, Modified Bilateral Filter, and CUNET across 3,083 samples. Use **Previous** and **Next** to browse. Toggle **Viridis** to change the colormap on all three distance maps.
+Compare RGB, sparse LiDAR, Modified Bilateral Filter, and CUNET across 3,083 samples. Use **Previous** and **Next** to browse, or enter a number from 1 to 3,083 in **Go to frame** and press Enter. Select **Show Viridis Colormap** to color the three distance maps.
 
 ## Open in your browser
 
@@ -18,4 +18,4 @@ python -m http.server 8000 --bind 127.0.0.1
 
 [Open the local viewer](http://localhost:8000/)
 
-You can also open [index.html](index.html) directly from your local checkout to load images from GitHub. For offline use, click **Open folder** and select the `MID-sparse-dense` folder.
+You can also open [index.html](index.html) directly from your local checkout to load images from GitHub.
