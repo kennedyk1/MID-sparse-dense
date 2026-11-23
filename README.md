@@ -12,7 +12,7 @@ The viewer loads images directly from this repository on `raw.githubusercontent.
 
 [Open the interactive Bilateral Filter](https://kennedyk1.github.io/MID-sparse-dense/bilateral-filter.html)
 
-The interactive page loads the original RGB image and LiDAR PLY for each frame. It projects the scan and computes the Bilateral Filter in your browser as you move the parameter sliders. Radial range is calculated from the PLY coordinates. [MID-3K camera and LiDAR calibration](https://github.com/kennedyk1/MID-3K/blob/main/calibration/color_lidar/calibration.yaml)
+The interactive page loads the original RGB image and LiDAR PLY for each frame. It projects the scan and computes the Bilateral Filter in your browser as you move the parameter sliders. Use **Restore defaults** to reset all four filter settings. Radial range is calculated from the PLY coordinates. [MID-3K camera and LiDAR calibration](https://github.com/kennedyk1/MID-3K/blob/main/calibration/color_lidar/calibration.yaml)
 
 ## Methods
 
