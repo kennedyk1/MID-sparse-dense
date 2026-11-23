@@ -126,7 +126,7 @@
     const rgb = byId("rgb");
     const legend = byId("legend");
     const images = byId("images");
-    const status = byId("status");
+    const statusLine = byId("status");
     const canvases = rangeFolders.map(byId);
     const metres = new Intl.NumberFormat("pt-BR", { maximumFractionDigits: 3 });
     const noDataColor = [18, 22, 26];
@@ -140,12 +140,47 @@
 
     let samples = [];
     let index = 0;
-    let requestId = 0;
+    let activeRequest;
     let displayed = null;
 
     function setStatus(message, error = false) {
-      status.textContent = message;
-      status.toggleAttribute("data-error", error);
+      statusLine.textContent = message;
+      statusLine.toggleAttribute("data-error", error);
+    }
+
+    function startRequest() {
+      activeRequest?.abort();
+      activeRequest = new AbortController();
+      return activeRequest.signal;
+    }
+
+    async function loadRepository() {
+      const signal = startRequest();
+      setStatus("Carregando a lista de amostras do repositório…");
+      try {
+        const response = await fetch("./frames.json", { signal });
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        const names = await response.json();
+        if (!Array.isArray(names) || !names.length ||
+            names.some(name => typeof name !== "string" || !/^\d{6}_\d{19}\.png$/.test(name))) {
+          throw new Error("Lista de amostras inválida.");
+        }
+        if (signal.aborted) return;
+        samples = names.map(name => ({ name }));
+        await showSample(0);
+      } catch (error) {
+        if (!signal.aborted) {
+          setStatus(`Erro ao ler frames.json (${error.message}). Use Abrir pasta para carregar as imagens locais.`, true);
+        }
+      }
+    }
+
+    async function loadPng(sample, folder, signal) {
+      if (sample.files) return sample.files.get(folder);
+      const path = `./${folder}/${encodeURIComponent(sample.name)}`;
+      const response = await fetch(path, { signal });
+      if (!response.ok) throw new Error(`${folder}/${sample.name} (HTTP ${response.status})`);
+      return response.blob();
     }
 
     function indexFiles(files) {
@@ -320,7 +355,7 @@
     }
 
     async function showSample(newIndex) {
-      const request = ++requestId;
+      const signal = startRequest();
       clearImages();
       index = newIndex;
       const sample = samples[index];
@@ -331,34 +366,38 @@
       if (!sample) return;
 
       setStatus(`Carregando ${sample.name}…`);
-      const url = URL.createObjectURL(sample.files.get("rgb"));
+      let url;
       try {
-        const preview = new Image();
-        preview.src = url;
-        const [maps] = await Promise.all([
+        const [rgbFile, maps] = await Promise.all([
+          loadPng(sample, "rgb", signal),
           Promise.all(rangeFolders.map(async folder => {
+            const file = await loadPng(sample, folder, signal);
             try {
-              return await decodeRangePng(sample.files.get(folder));
+              return await decodeRangePng(file);
             } catch (error) {
               throw new Error(`${folder}: ${error.message}`);
             }
           })),
-          preview.decode(),
         ]);
-        if (request !== requestId) return;
+        if (signal.aborted) return;
+        url = URL.createObjectURL(rgbFile);
+        const preview = new Image();
+        preview.src = url;
+        await preview.decode();
+        if (signal.aborted) return;
         displayed = { url, maps, limits: sharedLimits(maps) };
         drawMaps();
         rgb.src = url;
         rgb.hidden = false;
         setStatus(sample.name);
       } catch (error) {
-        if (request === requestId) {
+        if (!signal.aborted) {
           clearImages();
           setStatus(`Erro ao carregar ${sample.name}. ${error.message}`, true);
         }
       } finally {
-        if (displayed?.url !== url) URL.revokeObjectURL(url);
-        if (request === requestId) images.setAttribute("aria-busy", "false");
+        if (url && displayed?.url !== url) URL.revokeObjectURL(url);
+        if (!signal.aborted) images.setAttribute("aria-busy", "false");
       }
     }
 
@@ -382,6 +421,7 @@
         button.click();
       }
     });
+    if (location.protocol === "http:" || location.protocol === "https:") loadRepository();
   </script>
 </body>
 </html>
