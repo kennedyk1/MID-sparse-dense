@@ -2,6 +2,8 @@
 
 Compare RGB and sparse LiDAR with three LiDAR completion methods across 3,083 samples. Use **Previous** and **Next** to browse, or enter a number from 1 to 3,083 in **Go to frame** and press Enter. All four LiDAR maps use Viridis by default. Clear **Show Viridis Colormap** to switch to grayscale.
 
+In **Sparse Range LiDAR**, use **Background** to show missing measurements in black or white.
+
 ## Open in your browser
 
 [Open the viewer](https://kennedyk1.github.io/MID-sparse-dense/)
