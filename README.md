@@ -1,21 +1,21 @@
 # MID-sparse-dense
 
-Visualizador de 3.083 amostras com RGB, LiDAR esparso, Modified Bilateral Filter e CUNET. Use **Anterior** e **Próximo** para navegar. O checkbox **Viridis** muda as cores dos três mapas de distância.
+Compare RGB, sparse LiDAR, Modified Bilateral Filter, and CUNET across 3,083 samples. Use **Previous** and **Next** to browse. Toggle **Viridis** to change the colormap on all three distance maps.
 
-## Abrir no navegador
+## Open in your browser
 
-[Abrir o visualizador no GitHub Codespaces](https://codespaces.new/kennedyk1/MID-sparse-dense?quickstart=1)
+[Open the viewer](https://kennedyk1.github.io/MID-sparse-dense/)
 
-Crie ou retome um codespace. Se a página não abrir automaticamente, vá à aba **Ports** e abra o link da porta **8000**. O visualizador carrega as imagens da cópia do repositório no codespace.
+The viewer loads images directly from this repository on `raw.githubusercontent.com`.
 
-## Abrir localmente
+## Run locally
 
-Na raiz da cópia local do repositório, execute:
+Start the server from the root of your local checkout.
 
 ```bash
 python -m http.server 8000 --bind 127.0.0.1
 ```
 
-[Abrir o visualizador local](http://localhost:8000/)
+[Open the local viewer](http://localhost:8000/)
 
-Você também pode abrir [index.html](index.html) na cópia local e usar **Abrir pasta** para selecionar a pasta `MID-sparse-dense`.
+You can also open [index.html](index.html) directly from your local checkout to load images from GitHub. For offline use, click **Open folder** and select the `MID-sparse-dense` folder.
