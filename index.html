@@ -20,15 +20,13 @@
     [hidden] { display: none !important; }
     body { margin: 0; }
     main { max-width: 64rem; margin-inline: auto; padding: 1.5rem clamp(1rem, 3vw, 2rem); }
-    header, .toolbar, .navigation, .checkbox, .card-heading, .legend, .legend-labels {
+    .toolbar, .navigation, .frame-jump, .viridis-toggle, .card-heading, .legend, .legend-labels {
       display: flex;
       align-items: center;
     }
-    header, .toolbar { justify-content: space-between; gap: .75rem 1.25rem; flex-wrap: wrap; }
+    .toolbar { justify-content: space-between; gap: .75rem 1.25rem; flex-wrap: wrap; }
     h1 { margin: 0; font-size: clamp(1.5rem, 4vw, 2rem); letter-spacing: -.03em; }
-    .folder { display: inline-flex; position: relative; justify-content: center; }
-    .folder input { position: absolute; width: 1px; height: 1px; opacity: 0; }
-    button, .folder {
+    button, .frame-jump input {
       min-height: 2.5rem;
       padding: .5rem .9rem;
       border: 1px solid var(--border);
@@ -39,21 +37,32 @@
       font-size: .9rem;
       font-weight: 600;
       line-height: 1.5;
+    }
+    button { cursor: pointer; }
+    button:hover:enabled { background: #283646; }
+    button:disabled { color: #8594a4; cursor: default; }
+    :focus-visible, .viridis-toggle:has(input:focus-visible) { outline: 2px solid #96d9f0; outline-offset: 3px; }
+    .toolbar { margin-block: 1rem .6rem; padding-block: .65rem; border-block: 1px solid var(--border); }
+    .navigation, .frame-jump, .viridis-toggle { gap: .6rem; }
+    .frame-jump { font-size: .9rem; }
+    .frame-jump input { width: 5.5rem; padding-inline: .6rem; font-variant-numeric: tabular-nums; }
+    .viridis-toggle {
+      min-height: 2.5rem;
+      padding: .5rem .85rem;
+      border: 1px solid #58938b;
+      border-radius: .45rem;
+      background: #173632;
+      color: var(--accent);
+      font-size: .9rem;
+      font-weight: 700;
       cursor: pointer;
     }
-    .folder { align-items: center; background: var(--accent); border-color: transparent; color: #142320; }
-    button:hover:enabled { background: #283646; }
-    .folder:hover { background: #c1eee8; }
-    button:disabled { color: #8594a4; cursor: default; }
-    :focus-visible, .folder:has(input:focus-visible) { outline: 2px solid #96d9f0; outline-offset: 3px; }
-    .toolbar { margin-block: 1rem .6rem; padding-block: .65rem; border-block: 1px solid var(--border); }
-    .navigation, .checkbox { gap: .6rem; }
-    .checkbox { min-height: 2.5rem; cursor: pointer; }
-    .checkbox input { margin: 0; width: 1.1rem; height: 1.1rem; accent-color: var(--accent); }
+    .viridis-toggle:hover { background: #224641; }
+    .viridis-toggle:has(input:checked) { background: var(--accent); color: #142320; }
+    .viridis-toggle input { margin: 0; width: 1.1rem; height: 1.1rem; accent-color: #226058; }
     #counter { min-width: 6ch; text-align: center; font-variant-numeric: tabular-nums; }
     #status { min-height: 1.35em; margin: .6rem 0; color: var(--muted); overflow-wrap: anywhere; }
     #status[data-error] { color: #ffb8ad; }
-    code { color: #d5e5ed; font-size: .95em; }
     .legend { gap: .75rem; margin: .75rem 0; font-size: .875rem; color: var(--muted); flex-wrap: wrap; }
     .legend-labels { gap: .5rem; color: #dce6ee; font-variant-numeric: tabular-nums; }
     .legend canvas { display: block; width: clamp(5rem, 20vw, 12rem); height: .6rem; border-radius: .25rem; }
@@ -72,10 +81,6 @@
   <main>
     <header>
       <h1>RGB and LiDAR Viewer</h1>
-      <label class="folder">
-        <input id="folder" type="file" webkitdirectory>
-        <span>Open folder</span>
-      </label>
     </header>
 
     <div class="toolbar">
@@ -84,10 +89,15 @@
         <span id="counter" aria-label="Current sample">0 / 0</span>
         <button id="next" type="button" disabled>Next</button>
       </div>
-      <label class="checkbox"><input id="viridis" type="checkbox"> Viridis</label>
+      <form id="frame-jump" class="frame-jump">
+        <label for="frame-number">Go to frame</label>
+        <input id="frame-number" type="number" inputmode="numeric" min="1" step="1" required disabled>
+        <button id="frame-go" type="submit" disabled>Go</button>
+      </form>
+      <label class="viridis-toggle"><input id="viridis" type="checkbox"> Show Viridis Colormap</label>
     </div>
 
-    <p id="status" role="status">Select the <code>MID-sparse-dense</code> folder to load the samples.</p>
+    <p id="status" role="status">Loading samples from the repository…</p>
 
     <div id="legend" class="legend" hidden>
       <span>Shared scale</span>
@@ -117,14 +127,13 @@
 
   <script>
     const rangeFolders = ["sparse_range", "dense_range_BF", "dense_range_CUNET"];
-    const folders = ["rgb", ...rangeFolders];
     const rawRoot = "https://raw.githubusercontent.com/kennedyk1/MID-sparse-dense/main/";
     const openedAsFile = location.protocol === "file:";
     const imageRoot = openedAsFile || location.hostname === "kennedyk1.github.io" ? rawRoot : "./";
     const byId = id => document.getElementById(id);
-    const folderInput = byId("folder");
     const previous = byId("previous");
     const next = byId("next");
+    const frameNumber = byId("frame-number");
     const viridis = byId("viridis");
     const rgb = byId("rgb");
     const legend = byId("legend");
@@ -159,7 +168,6 @@
 
     async function loadRepository() {
       const signal = startRequest();
-      setStatus("Loading samples from the repository…");
       try {
         const response = await fetch(`${openedAsFile ? rawRoot : "./"}frames.json`, { signal });
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
@@ -169,37 +177,23 @@
           throw new Error("Invalid sample list.");
         }
         if (signal.aborted) return;
-        samples = names.map(name => ({ name }));
+        samples = names;
+        frameNumber.max = String(samples.length);
+        frameNumber.disabled = false;
+        byId("frame-go").disabled = false;
         await showSample(0);
       } catch (error) {
         if (!signal.aborted) {
-          setStatus(`Could not read frames.json (${error.message}). Use Open folder to load local images.`, true);
+          setStatus(`Could not read the sample list. ${error.message}`, true);
         }
       }
     }
 
-    async function loadPng(sample, folder, signal) {
-      if (sample.files) return sample.files.get(folder);
-      const path = `${imageRoot}${folder}/${encodeURIComponent(sample.name)}`;
+    async function loadPng(name, folder, signal) {
+      const path = `${imageRoot}${folder}/${encodeURIComponent(name)}`;
       const response = await fetch(path, { signal });
-      if (!response.ok) throw new Error(`${folder}/${sample.name} (HTTP ${response.status})`);
+      if (!response.ok) throw new Error(`${folder}/${name} (HTTP ${response.status})`);
       return response.blob();
-    }
-
-    function indexFiles(files) {
-      const groups = new Map();
-      for (const file of files) {
-        const parts = file.webkitRelativePath.split("/");
-        if (parts.length !== 3) continue;
-        const [, folder, name] = parts;
-        if (!folders.includes(folder) || !/\.png$/i.test(name)) continue;
-        if (!groups.has(name)) groups.set(name, new Map());
-        groups.get(name).set(folder, file);
-      }
-      return [...groups.keys()].sort().flatMap(name => {
-        const group = groups.get(name);
-        return group.size === folders.length ? [{ name, files: group }] : [];
-      });
     }
 
     function paeth(left, up, diagonal) {
@@ -361,20 +355,20 @@
       const signal = startRequest();
       clearImages();
       index = newIndex;
-      const sample = samples[index];
+      const name = samples[index];
       previous.disabled = index <= 0;
       next.disabled = index + 1 >= samples.length;
-      byId("counter").textContent = `${sample ? index + 1 : 0} / ${samples.length}`;
-      images.setAttribute("aria-busy", String(Boolean(sample)));
-      if (!sample) return;
+      frameNumber.value = String(index + 1);
+      byId("counter").textContent = `${index + 1} / ${samples.length}`;
+      images.setAttribute("aria-busy", "true");
 
-      setStatus(`Loading ${sample.name}…`);
+      setStatus(`Loading ${name}…`);
       let url;
       try {
         const [rgbFile, maps] = await Promise.all([
-          loadPng(sample, "rgb", signal),
+          loadPng(name, "rgb", signal),
           Promise.all(rangeFolders.map(async folder => {
-            const file = await loadPng(sample, folder, signal);
+            const file = await loadPng(name, folder, signal);
             try {
               return await decodeRangePng(file);
             } catch (error) {
@@ -392,11 +386,11 @@
         drawMaps();
         rgb.src = url;
         rgb.hidden = false;
-        setStatus(sample.name);
+        setStatus(name);
       } catch (error) {
         if (!signal.aborted) {
           clearImages();
-          setStatus(`Could not load ${sample.name}. ${error.message}`, true);
+          setStatus(`Could not load ${name}. ${error.message}`, true);
         }
       } finally {
         if (url && displayed?.url !== url) URL.revokeObjectURL(url);
@@ -404,13 +398,11 @@
       }
     }
 
-    folderInput.addEventListener("change", () => {
-      if (!folderInput.files.length) return;
-      samples = indexFiles(folderInput.files);
-      folderInput.value = "";
-      showSample(0);
-      if (!samples.length) {
-        setStatus("No complete samples found. Select the folder that contains rgb, sparse_range, dense_range_BF, and dense_range_CUNET.", true);
+    byId("frame-jump").addEventListener("submit", event => {
+      event.preventDefault();
+      const targetIndex = frameNumber.valueAsNumber - 1;
+      if (Number.isInteger(targetIndex) && targetIndex >= 0 && targetIndex < samples.length) {
+        showSample(targetIndex);
       }
     });
     previous.addEventListener("click", () => showSample(index - 1));
